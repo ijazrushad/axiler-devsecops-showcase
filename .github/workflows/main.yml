@@ -1,0 +1,17 @@
+name: Build, Scan, and Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  initial-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run a simple test
+        run: echo "CI/CD pipeline is successfully triggered!"
