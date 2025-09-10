@@ -1,17 +1,99 @@
-name: Build, Scan, and Deploy
+name: Build, Scan, and Deploy to GKE
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_GAR_LOCATION: asia-south1
+  GKE_CLUSTER: axiler-gke-cluster
+  GKE_ZONE: asia-south1-b
+  IMAGE_NAME: juice-shop
+  HELM_RELEASE_NAME: juiceshop-prod 
 
 jobs:
-  initial-check:
+  check-auth:
+    name: "Check GCP Authentication"
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-      - name: Run a simple test
-        run: echo "CI/CD pipeline is successfully triggered!"
+      - name: 'Test gcloud command'
+        run: 'gcloud info'
+
+  build-scan-and-push:
+    name: "Build, Scan, and Push Image"
+    needs: check-auth
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+    - name: 'Checkout code'
+      uses: actions/checkout@v4
+
+    - name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v2'
+      with:
+        workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+    - name: 'Configure Docker for GAR'
+      run: gcloud auth configure-docker $GCP_GAR_LOCATION-docker.pkg.dev
+
+    - name: 'Build Docker image'
+      run: |-
+        docker build \
+          --tag "$GCP_GAR_LOCATION-docker.pkg.dev/$GCP_PROJECT_ID/axiler-docker-repo/$IMAGE_NAME:${{ github.sha }}" \
+          --tag "$GCP_GAR_LOCATION-docker.pkg.dev/$GCP_PROJECT_ID/axiler-docker-repo/$IMAGE_NAME:latest" \
+          .
+
+    - name: 'Scan image for vulnerabilities with Trivy'
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: '$GCP_GAR_LOCATION-docker.pkg.dev/$GCP_PROJECT_ID/axiler-docker-repo/$IMAGE_NAME:${{ github.sha }}'
+        format: 'table'
+        severity: 'HIGH,CRITICAL'
+        exit-code: '1'
+
+    - name: 'Push Docker image to GAR'
+      run: |-
+        docker push "$GCP_GAR_LOCATION-docker.pkg.dev/$GCP_PROJECT_ID/axiler-docker-repo/$IMAGE_NAME:${{ github.sha }}"
+        docker push "$GCP_GAR_LOCATION-docker.pkg.dev/$GCP_PROJECT_ID/axiler-docker-repo/$IMAGE_NAME:latest"
+
+  deploy-to-gke:
+    name: "Deploy to GKE"
+    needs: build-scan-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+    - name: 'Checkout code'
+      uses: actions/checkout@v4
+
+    - name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v2'
+      with:
+        workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+    - name: 'Get GKE cluster credentials'
+      run: gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE
+
+    - name: 'Deploy with Helm'
+      run: |-
+        helm upgrade --install $HELM_RELEASE_NAME ./kubernetes/juice-shop \
+          --namespace default \
+          --set image.tag=${{ github.sha }} \
+          --set image.repository="$GCP_GAR_LOCATION-docker.pkg.dev/$GCP_PROJECT_ID/axiler-docker-repo/$IMAGE_NAME"

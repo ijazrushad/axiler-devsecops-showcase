@@ -1,0 +1,23 @@
+
+
+replicaCount: 1
+
+image:
+  repository: "bkimminich/juice-shop"
+  pullPolicy: IfNotPresent
+  # Pinning a specific version is better than using 'latest' for predictable deployments
+  tag: "v16.0.0"
+
+service:
+  type: LoadBalancer # Exposes the app outside the cluster via a cloud load balancer
+  port: 80           # The port the load balancer will listen on
+  targetPort: 3000   # The port the Juice Shop container listens on
+
+# Resource requests and limits are a best practice for scheduling and stability
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi

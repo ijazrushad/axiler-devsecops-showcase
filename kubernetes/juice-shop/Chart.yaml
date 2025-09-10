@@ -1,0 +1,9 @@
+apiVersion: v2
+name: juice-shop
+description: A Helm chart for deploying OWASP Juice Shop
+type: application
+
+
+version: 0.1.0
+
+appVersion: "v16.0.0"

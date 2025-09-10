@@ -1,0 +1,12 @@
+# .gitignore
+
+# Terraform files
+**/.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+.terraform.lock.hcl
+
+# IDE / OS files
+.vscode/
+.DS_Store
