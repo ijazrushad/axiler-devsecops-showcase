@@ -111,5 +111,5 @@ jobs:
     - name: 'Verify deployment'
       run: |-
         echo "Verifying deployment..."
-        kubectl get service ${{ env.HELM_RELEASE_NAME }}
+        kubectl get service ${{ env.HELM_RELEASE_NAME }}-juice-shop
         kubectl get pods
