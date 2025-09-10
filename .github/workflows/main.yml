@@ -57,10 +57,17 @@ jobs:
       uses: aquasecurity/trivy-action@master
       with:
         image-ref: '${{ env.GCP_GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/axiler-docker-repo/${{ env.IMAGE_NAME }}:${{ github.sha }}'
+        format: 'table'
+        severity: 'HIGH,CRITICAL'
+        exit-code: '0'  # Don't fail the build, just report
+
+    - name: 'Scan image for SARIF report'
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: '${{ env.GCP_GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/axiler-docker-repo/${{ env.IMAGE_NAME }}:${{ github.sha }}'
         format: 'sarif'
         output: 'trivy-results.sarif'
         severity: 'HIGH,CRITICAL'
-        exit-code: '0'  # Don't fail the build, just report
 
     - name: 'Upload Trivy scan results to GitHub Security tab'
       uses: github/codeql-action/upload-sarif@v3
