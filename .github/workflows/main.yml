@@ -12,7 +12,7 @@ env:
   GKE_CLUSTER: axiler-gke-cluster
   GKE_ZONE: asia-south1-b
   IMAGE_NAME: juice-shop
-  HELM_RELEASE_NAME: juiceshop-prod 
+  HELM_RELEASE_NAME: juiceshop-prod
 
 jobs:
   build-scan-and-push:
@@ -20,58 +20,39 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: 'read'
-      id-token: 'write'
-      security-events: 'write'
-    outputs:
-      image-digest: ${{ steps.build.outputs.digest }}
-      image-tag: ${{ github.sha }}
+      id-token: 'write' # Required for Workload Identity Federation
+      security-events: 'write' # Required to upload SARIF results
 
     steps:
     - name: 'Checkout code'
       uses: actions/checkout@v4
-
-    - name: 'Debug GitHub context'
-      run: |
-        echo "Repository: ${{ github.repository }}"
-        echo "Repository Owner: ${{ github.repository_owner }}"
-        echo "Ref: ${{ github.ref }}"
-        echo "Actor: ${{ github.actor }}"
-        echo "SHA: ${{ github.sha }}"
-        echo "Event Name: ${{ github.event_name }}"
 
     - name: 'Authenticate to Google Cloud'
       uses: 'google-github-actions/auth@v2'
       with:
         workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
         service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-        create_credentials_file: true
-        export_environment_variables: true
-
-    - name: 'Set up Cloud SDK'
-      uses: 'google-github-actions/setup-gcloud@v2'
 
     - name: 'Configure Docker for GAR'
-      run: gcloud auth configure-docker $GCP_GAR_LOCATION-docker.pkg.dev
+      run: gcloud auth configure-docker ${{ env.GCP_GAR_LOCATION }}-docker.pkg.dev
 
     - name: 'Build Docker image'
-      id: build
       run: |-
-        IMAGE_URI="$GCP_GAR_LOCATION-docker.pkg.dev/$GCP_PROJECT_ID/axiler-docker-repo/$IMAGE_NAME"
+        IMAGE_URI="${{ env.GCP_GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/axiler-docker-repo/${{ env.IMAGE_NAME }}"
         docker build \
           --tag "$IMAGE_URI:${{ github.sha }}" \
           --tag "$IMAGE_URI:latest" \
           .
-        echo "digest=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE_URI:${{ github.sha }} 2>/dev/null || echo 'none')" >> $GITHUB_OUTPUT
 
-    - name: 'Scan image for vulnerabilities with Trivy'
+    - name: 'Scan image with Trivy (Log)'
       uses: aquasecurity/trivy-action@master
       with:
         image-ref: '${{ env.GCP_GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/axiler-docker-repo/${{ env.IMAGE_NAME }}:${{ github.sha }}'
         format: 'table'
         severity: 'HIGH,CRITICAL'
-        exit-code: '0'  # Don't fail the build, just report
+        exit-code: '0' # Don't fail the build, just report issues in the log
 
-    - name: 'Scan image for SARIF report'
+    - name: 'Scan image with Trivy (SARIF)'
       uses: aquasecurity/trivy-action@master
       with:
         image-ref: '${{ env.GCP_GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/axiler-docker-repo/${{ env.IMAGE_NAME }}:${{ github.sha }}'
@@ -81,24 +62,27 @@ jobs:
 
     - name: 'Upload Trivy scan results to GitHub Security tab'
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: always() # Ensure this runs even if the scan finds issues
       with:
         sarif_file: 'trivy-results.sarif'
 
     - name: 'Push Docker image to GAR'
+      # This step only runs for pushes to the main branch, not for pull requests
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       run: |-
-        docker push "$GCP_GAR_LOCATION-docker.pkg.dev/$GCP_PROJECT_ID/axiler-docker-repo/$IMAGE_NAME:${{ github.sha }}"
-        docker push "$GCP_GAR_LOCATION-docker.pkg.dev/$GCP_PROJECT_ID/axiler-docker-repo/$IMAGE_NAME:latest"
+        IMAGE_URI="${{ env.GCP_GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/axiler-docker-repo/${{ env.IMAGE_NAME }}"
+        docker push "$IMAGE_URI:${{ github.sha }}"
+        docker push "$IMAGE_URI:latest"
 
   deploy-to-gke:
     name: "Deploy to GKE"
-    needs: build-scan-and-push
+    needs: build-scan-and-push # This job waits for the build job to succeed
     runs-on: ubuntu-latest
+    # This job only runs for pushes to the main branch
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: 'read'
-      id-token: 'write'
+      id-token: 'write' # Required for Workload Identity Federation
 
     steps:
     - name: 'Checkout code'
@@ -110,27 +94,22 @@ jobs:
         workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
         service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-    - name: 'Set up Cloud SDK'
-      uses: 'google-github-actions/setup-gcloud@v2'
-
     - name: 'Get GKE cluster credentials'
-      run: gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $GCP_PROJECT_ID
-
-    - name: 'Install Helm'
-      uses: azure/setup-helm@v4
+      uses: 'google-github-actions/get-gke-credentials@v2'
       with:
-        version: '3.12.0'
+        cluster_name: ${{ env.GKE_CLUSTER }}
+        location: ${{ env.GKE_ZONE }}
 
     - name: 'Deploy with Helm'
       run: |-
-        helm upgrade --install $HELM_RELEASE_NAME ./kubernetes/juice-shop \
+        helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ./kubernetes/juice-shop \
           --namespace default \
-          --set image.tag=${{ needs.build-scan-and-push.outputs.image-tag }} \
-          --set image.repository="$GCP_GAR_LOCATION-docker.pkg.dev/$GCP_PROJECT_ID/axiler-docker-repo/$IMAGE_NAME" \
-          --wait \
-          --timeout=10m
+          --set image.tag=${{ github.sha }} \
+          --set image.repository="${{ env.GCP_GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/axiler-docker-repo/${{ env.IMAGE_NAME }}" \
+          --wait
 
     - name: 'Verify deployment'
       run: |-
-        kubectl rollout status deployment/$HELM_RELEASE_NAME --timeout=300s
-        kubectl get services
+        echo "Verifying deployment..."
+        kubectl get service ${{ env.HELM_RELEASE_NAME }}
+        kubectl get pods
