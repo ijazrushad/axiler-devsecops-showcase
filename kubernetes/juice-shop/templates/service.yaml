@@ -4,7 +4,7 @@ kind: Service
 metadata:
   name: {{ .Release.Name }}-juice-shop
 spec:
-  type: {{ .Values.service.type }}
+  type: NodePort
   ports:
     - port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
