@@ -1,0 +1,9 @@
+
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: grafana-certificate
+  namespace: monitoring
+spec:
+  domains:
+    - grafana.34.96.111.67.nip.io

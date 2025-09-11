@@ -1,0 +1,21 @@
+# grafana-ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ingress
+  namespace: monitoring
+  annotations:
+    networking.gke.io/managed-certificates: "grafana-certificate"
+spec:
+  ingressClassName: gke
+  rules:
+  - host: "grafana.34.96.111.67.nip.io"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: prometheus-grafana
+            port:
+              number: 80

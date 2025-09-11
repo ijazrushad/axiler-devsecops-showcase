@@ -1,0 +1,12 @@
+{
+  "name": "axiler-devsecops-showcase",
+  "version": "1.0.0",
+  "description": "This repository contains the complete infrastructure and CI/CD pipeline for a take-home assessment.  \r It demonstrates a robust **DevSecOps** approach to deploying, securing, and managing a containerized application on **Google Kubernetes Engine (GKE)**.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
