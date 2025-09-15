@@ -57,16 +57,18 @@ This project showcases:
 
 | **Category**           | **Tool** | **Why I Chose It** |
 |-------------------------|----------|---------------------|
+| **Application**      | OWASP Juice Shop | Chosen specifically because it is a deliberately insecure application |
 | **Cloud Provider**      | Google Cloud Platform (GCP) | Free trial credits, mature GKE & WIF. |
 | **Orchestration**       | GKE | Managed, self-healing, auto-scaling, GCP-native integration. |
 | **Infrastructure as Code** | Terraform | Industry-standard IaC, repeatable & auditable. |
 | **CI/CD**               | GitHub Actions | Native to repo, OIDC support, rich marketplace. |
+| **DNS Service**         | nip.io | A free and clever wildcard DNS service. It was used to provide a valid, resolvable domain name for the application's public IP address |
 | **Packaging**           | Helm | Version-controlled deployments, upgrades, rollbacks. |
 | **Containerization**    | Docker | Lightweight, portable, consistent environments. |
 | **Security Scanning**   | Trivy | Open-source, fast, CI/CD integrated scanning. |
 | **Authentication**      | Workload Identity Federation (WIF) | Keyless, secure, eliminates long-lived secrets. |
 | **Networking & HTTPS**  | GKE Ingress + Managed Certificates | Automated TLS, zero maintenance. |
-| **Monitoring Tools**  |Prometheus + Grafana |
+| **Monitoring Tools**  |Prometheus + Grafana | Open Source |
 
 ---
 
