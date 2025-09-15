@@ -1,4 +1,13 @@
-# grafana-ingress.yaml
+# grafana-networking.yaml
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: grafana-certificate
+  namespace: monitoring
+spec:
+  domains:
+    - grafana.34.107.194.151.nip.io
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -6,10 +15,10 @@ metadata:
   namespace: monitoring
   annotations:
     networking.gke.io/managed-certificates: "grafana-certificate"
+    kubernetes.io/ingress.global-static-ip-name: "juice-shop-static-ip"
 spec:
-  ingressClassName: gke
   rules:
-  - host: "grafana.34.96.111.67.nip.io"
+  - host: "grafana.34.107.194.151.nip.io"
     http:
       paths:
       - path: /

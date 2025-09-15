@@ -50,7 +50,7 @@ jobs:
         image-ref: '${{ env.GCP_GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/axiler-docker-repo/${{ env.IMAGE_NAME }}:${{ github.sha }}'
         format: 'table'
         severity: 'HIGH,CRITICAL'
-        exit-code: '0' 
+        exit-code: '1' 
 
     - name: 'Scan image with Trivy (SARIF)'
       uses: aquasecurity/trivy-action@master

@@ -14,8 +14,14 @@ metadata:
     networking.gke.io/managed-certificates: juice-shop-certificate
     kubernetes.io/ingress.global-static-ip-name: "juice-shop-static-ip"
 spec:
-  defaultBackend:
-    service:
-      name: {{ .Release.Name }}-juice-shop
-      port:
-        number: 80
+  rules:
+  - host: juiceshop.34.107.194.151.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Release.Name }}-juice-shop
+            port:
+              number: 80
