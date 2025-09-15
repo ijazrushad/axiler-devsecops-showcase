@@ -10,3 +10,5 @@ terraform.tfvars
 # IDE / OS files
 .vscode/
 .DS_Storevalues.yaml
+
+node_modules/
