@@ -10,6 +10,8 @@ The project goes beyond a simple deployment; it's a narrative of building resili
 ## Live Demo
 The Juice Shop application is deployed and accessible with HTTPS at:  
 [https://juiceshop.34.107.194.151.nip.io](https://juiceshop.34.107.194.151.nip.io)  
+Monitoring Portal:
+[https://grafana.34.107.194.151.nip.io/](https://grafana.34.107.194.151.nip.io/)
 *(Note: This infrastructure may be torn down after the assessment period.)*
 
 ---
@@ -30,6 +32,8 @@ The architecture is designed for **security, automation, and scalability**, with
 6. The pipeline deploys the image to **GKE** using **Helm**.  
 7. **GKE Ingress** provisions a Google-managed SSL certificate, routing traffic from a static IP.  
 8. End-users access the application securely over **HTTPS**.  
+9. NetwkPolicy Enable by Default Deny
+10. Grafan Dashboard Live
 
 ---
 
@@ -45,6 +49,7 @@ This project showcases:
 - **Container Security:** "Shift-left" scanning for vulnerabilities before deployment.  
 - **Cloud-Native Security:** Keyless authentication + managed TLS.  
 - **Scalability:** Auto-scaling managed Kubernetes clusters.  
+- **Monitoring** Grafana + Prometheus Live Dashboard.
 
 ---
 
@@ -61,6 +66,7 @@ This project showcases:
 | **Security Scanning**   | Trivy | Open-source, fast, CI/CD integrated scanning. |
 | **Authentication**      | Workload Identity Federation (WIF) | Keyless, secure, eliminates long-lived secrets. |
 | **Networking & HTTPS**  | GKE Ingress + Managed Certificates | Automated TLS, zero maintenance. |
+| **Monitoring Tools**  |Prometheus + Grafana |
 
 ---
 
@@ -87,15 +93,32 @@ Building this pipeline was a multi-stage process that involved overcoming a seri
 - **ImagePullBackOff:** The first Helm deployment from the pipeline timed out. `kubectl describe pod` revealed the issue: GKE nodes lacked permission to pull images from the private Google Artifact Registry. Solved by granting the Artifact Registry Reader role to the GKE nodes' default service account.
 - **Pending Pods:** Next run timed out with pods stuck in a Pending state. The root cause was insufficient CPU/memory resources. Enabled GKE cluster autoscaling, allowing the cluster to automatically add new nodes on demand—the cloud-native solution to resource contention.
 
+### Phase 5: The GKE Ingress Gauntlet & The Reverse Proxy Solution
+- **The Initial FailedNotVisible Error:** The ManagedCertificate resource for Grafana was persistently failing its validation check. This indicated that the Google Cloud Load Balancer, created by the GKE Ingress, was unreachable from the public internet.
+- **A Multi-Layered Investigation:** The troubleshooting journey involved methodically isolating and eliminating potential causes:
+- `Zero-Trust Policies:` I first suspected the new NetworkPolicy rules were blocking the CA's validation servers or GKE's health checkers. O created more permissive rules, but the error remained.
+- `Ingress Conflicts:` I discovered multiple issues with the Ingress setup: a "catch-all" rule on the Juice Shop Ingress was hijacking traffic, and a missing default-http-backend service was preventing the GKE controller from syncing any changes. I fixed both.
+- `The "Two Load Balancers" Problem:` After fixing the above, GKE created two separate, conflicting Application Load Balancers instead of merging the Ingress rules. The new one for Grafana was created without a public IP (frontend), confirming a deep-seated configuration conflict.
+- **The Final Solution – The Reverse Proxy Pattern:** After exhausting all standard Ingress configurations, the definitive solution was to simplify the task for the GKE controller. I implemented a classic reverse proxy pattern:
+- A lightweight NGINX proxy Deployment was created in the default namespace.
+- The single, unified Ingress now only routes to services within its own namespace (juice-shop-service and grafana-proxy-service).
+- The NGINX proxy then handles the simple and reliable cross-namespace forwarding to the real Grafana service in the monitoring namespace.
+
+This elegant solution bypassed the GKE controller's complex and problematic cross-namespace logic, providing a stable, secure, and scalable frontend for both applications. It's a testament to solving problems by moving up the stack and abstracting away platform-level complexities.
+
+
 ### The Lesson
 This multi-phase journey, from manual deployment to a fully automated and hardened pipeline, reflects a real-world DevOps workflow of **iterative improvement** and **persistent problem-solving**.   
 
 ---
 
 ## Future Improvements
-- **Monitoring & Alerting:** Deploy `kube-prometheus-stack`, configure Grafana + Alertmanager.  
-- **Centralized Logging:** Add EFK (Elasticsearch, Fluentd, Kibana) stack.  
-- **Zero-Trust Networking:** Strict Kubernetes `NetworkPolicy` for pod communication.  
-- **GitOps Deployment:** Use ArgoCD for a pull-based deployment model.  
+- **Centralized Logging:** Add EFK (Elasticsearch, Fluentd, Kibana) stack.   
+- **GitOps Deployment:** Use ArgoCD for a pull-based deployment model. 
+
+## Conclusion
+
+This project successfully demonstrates a complete, secure, and automated DevSecOps workflow on GKE. From writing infrastructure as code with Terraform to navigating complex authentication and networking bugs in a cloud-native environment, it showcases the persistence and deep technical knowledge required to build and maintain resilient systems. The result is a "silent guardian"—an automated pipeline that securely delivers applications to the digital frontier.
+
 
 ---
